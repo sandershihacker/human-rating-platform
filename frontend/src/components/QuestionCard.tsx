@@ -1,6 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
+import type { Question } from '../types';
 
-function QuestionCard({ question, onSubmit }) {
+interface QuestionCardProps {
+  question: Question;
+  onSubmit: (answer: string, confidence: number, timeStarted: string) => Promise<void>;
+}
+
+function QuestionCard({ question, onSubmit }: QuestionCardProps) {
   const [selectedAnswer, setSelectedAnswer] = useState('');
   const [freeTextAnswer, setFreeTextAnswer] = useState('');
   const [confidence, setConfidence] = useState(3);
@@ -50,7 +56,7 @@ function QuestionCard({ question, onSubmit }) {
       fontSize: '12px',
       fontWeight: 500,
       color: '#888',
-      textTransform: 'uppercase',
+      textTransform: 'uppercase' as const,
       letterSpacing: '0.5px',
       marginBottom: '12px',
     },
@@ -62,7 +68,7 @@ function QuestionCard({ question, onSubmit }) {
     },
     optionsGrid: {
       display: 'flex',
-      flexDirection: 'column',
+      flexDirection: 'column' as const,
       gap: '10px',
       marginBottom: '24px',
     },
@@ -73,7 +79,7 @@ function QuestionCard({ question, onSubmit }) {
       borderRadius: '8px',
       cursor: 'pointer',
       fontSize: '15px',
-      textAlign: 'left',
+      textAlign: 'left' as const,
       transition: 'all 0.15s',
       color: '#333',
     },
@@ -89,9 +95,9 @@ function QuestionCard({ question, onSubmit }) {
       borderRadius: '8px',
       fontSize: '15px',
       lineHeight: 1.5,
-      resize: 'vertical',
+      resize: 'vertical' as const,
       marginBottom: '24px',
-      boxSizing: 'border-box',
+      boxSizing: 'border-box' as const,
     },
     confidenceSection: {
       marginBottom: '24px',
@@ -119,7 +125,7 @@ function QuestionCard({ question, onSubmit }) {
       width: '100%',
       height: '8px',
       borderRadius: '4px',
-      appearance: 'none',
+      appearance: 'none' as const,
       background: '#ddd',
       outline: 'none',
       cursor: 'pointer',

@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
 
-function Timer({ sessionEndTime, onExpire }) {
-  const [timeRemaining, setTimeRemaining] = useState(null);
+interface TimerProps {
+  sessionEndTime: string;
+  onExpire: () => void;
+}
+
+function Timer({ sessionEndTime, onExpire }: TimerProps) {
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [isWarning, setIsWarning] = useState(false);
 
   useEffect(() => {
@@ -33,7 +38,7 @@ function Timer({ sessionEndTime, onExpire }) {
 
   const styles = {
     timer: {
-      position: 'fixed',
+      position: 'fixed' as const,
       top: '20px',
       right: '20px',
       background: isWarning ? '#dc3545' : '#333',

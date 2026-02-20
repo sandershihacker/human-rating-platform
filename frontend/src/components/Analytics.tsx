@@ -1,11 +1,18 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
+import type { Analytics as AnalyticsType } from '../types';
 
-function Analytics({ experimentId, experimentName, onBack }) {
-  const [analytics, setAnalytics] = useState(null);
+interface AnalyticsProps {
+  experimentId: number;
+  experimentName: string;
+  onBack: () => void;
+}
+
+function Analytics({ experimentId, experimentName, onBack }: AnalyticsProps) {
+  const [analytics, setAnalytics] = useState<AnalyticsType | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'questions' | 'raters'>('overview');
 
   useEffect(() => {
     loadAnalytics();
@@ -17,13 +24,13 @@ function Analytics({ experimentId, experimentName, onBack }) {
       const data = await api.getExperimentAnalytics(experimentId);
       setAnalytics(data);
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
   };
 
-  const formatTime = (seconds) => {
+  const formatTime = (seconds: number | undefined | null): string => {
     if (seconds === undefined || seconds === null || isNaN(seconds)) return '-';
     if (seconds < 60) return `${seconds.toFixed(1)}s`;
     const mins = Math.floor(seconds / 60);
@@ -31,7 +38,7 @@ function Analytics({ experimentId, experimentName, onBack }) {
     return `${mins}m ${secs}s`;
   };
 
-  const formatNumber = (num, decimals = 1) => {
+  const formatNumber = (num: number | undefined | null, decimals = 1): string => {
     if (num === undefined || num === null || isNaN(num)) return '-';
     return num.toFixed(decimals);
   };
@@ -103,7 +110,7 @@ function Analytics({ experimentId, experimentName, onBack }) {
       margin: 0,
       fontSize: '14px',
       fontWeight: 600,
-      textTransform: 'uppercase',
+      textTransform: 'uppercase' as const,
       letterSpacing: '0.5px',
       color: '#555',
     },
@@ -116,7 +123,7 @@ function Analytics({ experimentId, experimentName, onBack }) {
       gap: '16px',
     },
     statItem: {
-      textAlign: 'center',
+      textAlign: 'center' as const,
       padding: '20px 16px',
       background: '#f8f9fa',
       borderRadius: '6px',
@@ -133,29 +140,29 @@ function Analytics({ experimentId, experimentName, onBack }) {
     },
     table: {
       width: '100%',
-      borderCollapse: 'collapse',
+      borderCollapse: 'collapse' as const,
       fontSize: '14px',
     },
     th: {
       padding: '12px 16px',
-      textAlign: 'left',
+      textAlign: 'left' as const,
       background: '#fafafa',
       borderBottom: '2px solid #e0e0e0',
       fontWeight: 600,
       fontSize: '12px',
-      textTransform: 'uppercase',
+      textTransform: 'uppercase' as const,
       letterSpacing: '0.5px',
       color: '#555',
     },
     thCenter: {
-      textAlign: 'center',
+      textAlign: 'center' as const,
     },
     td: {
       padding: '12px 16px',
       borderBottom: '1px solid #eee',
     },
     tdCenter: {
-      textAlign: 'center',
+      textAlign: 'center' as const,
     },
     tdMono: {
       fontFamily: 'monospace',
@@ -179,7 +186,7 @@ function Analytics({ experimentId, experimentName, onBack }) {
     },
     emptyState: {
       padding: '40px 20px',
-      textAlign: 'center',
+      textAlign: 'center' as const,
       color: '#888',
     },
   };
@@ -201,6 +208,10 @@ function Analytics({ experimentId, experimentName, onBack }) {
     );
   }
 
+  if (!analytics) {
+    return null;
+  }
+
   return (
     <div style={styles.container}>
       {/* Header */}
@@ -211,7 +222,7 @@ function Analytics({ experimentId, experimentName, onBack }) {
 
       {/* Tabs */}
       <div style={styles.tabs}>
-        {['overview', 'questions', 'raters'].map((tab) => (
+        {(['overview', 'questions', 'raters'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}

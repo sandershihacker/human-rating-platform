@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import type { Experiment, ExperimentCreate } from '../types';
 
 function AdminView() {
   const navigate = useNavigate();
-  const [experiments, setExperiments] = useState([]);
+  const [experiments, setExperiments] = useState<Experiment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  const [newExperiment, setNewExperiment] = useState({
+  const [newExperiment, setNewExperiment] = useState<ExperimentCreate>({
     name: '',
     num_ratings_per_question: 3,
     prolific_completion_url: '',
@@ -25,13 +26,13 @@ function AdminView() {
       const data = await api.listExperiments();
       setExperiments(data);
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreateExperiment = async (e) => {
+  const handleCreateExperiment = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
@@ -45,11 +46,11 @@ function AdminView() {
       });
       navigate(`/admin/experiments/${created.id}`);
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Unknown error');
     }
   };
 
-  const handleSelectExperiment = (exp) => {
+  const handleSelectExperiment = (exp: Experiment) => {
     navigate(`/admin/experiments/${exp.id}`);
   };
 
@@ -93,7 +94,7 @@ function AdminView() {
       margin: 0,
       fontSize: '14px',
       fontWeight: 600,
-      textTransform: 'uppercase',
+      textTransform: 'uppercase' as const,
       letterSpacing: '0.5px',
       color: '#555',
     },
@@ -116,7 +117,7 @@ function AdminView() {
       border: '1px solid #ddd',
       borderRadius: '6px',
       fontSize: '14px',
-      boxSizing: 'border-box',
+      boxSizing: 'border-box' as const,
     },
     hint: {
       fontSize: '12px',
@@ -164,7 +165,7 @@ function AdminView() {
     },
     emptyState: {
       padding: '40px 20px',
-      textAlign: 'center',
+      textAlign: 'center' as const,
       color: '#888',
     },
   };

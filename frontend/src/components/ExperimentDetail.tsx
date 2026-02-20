@@ -1,26 +1,40 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
 import Analytics from './Analytics';
+import type { Experiment, ExperimentStats, Upload } from '../types';
 
-function ExperimentDetail({ experiment, onBack, onDeleted }) {
-  const [stats, setStats] = useState(null);
-  const [uploads, setUploads] = useState([]);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
-  const [uploadFile, setUploadFile] = useState(null);
+interface ExperimentDetailProps {
+  experiment: Experiment;
+  onBack: () => void;
+  onDeleted: () => void;
+}
+
+interface AssistanceMethods {
+  searchResults: boolean;
+  selectedEvidence: boolean;
+  aiConfidence: boolean;
+  aiChatAssistant: boolean;
+}
+
+function ExperimentDetail({ experiment, onBack, onDeleted }: ExperimentDetailProps) {
+  const [stats, setStats] = useState<ExperimentStats | null>(null);
+  const [uploads, setUploads] = useState<Upload[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
 
   // TODO: When the methods team provides assistance methods for experimentation, we should add them here.
   // TODO: Load these from experiment settings in the backend
   // TODO: Save changes to backend when toggled
-  const [assistanceMethods, setAssistanceMethods] = useState({
+  const [assistanceMethods, setAssistanceMethods] = useState<AssistanceMethods>({
     searchResults: false,
     selectedEvidence: false,
     aiConfidence: false,
     aiChatAssistant: false,
   });
 
-  const handleAssistanceToggle = (method) => {
+  const handleAssistanceToggle = (method: keyof AssistanceMethods) => {
     // TODO: Implement API call to save assistance method settings
     // TODO: Disable toggles if experiment has ratings (to prevent mid-experiment changes)
     setAssistanceMethods(prev => ({
@@ -41,7 +55,7 @@ function ExperimentDetail({ experiment, onBack, onDeleted }) {
       const data = await api.getExperimentStats(experiment.id);
       setStats(data);
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Unknown error');
     }
   };
 
@@ -49,12 +63,12 @@ function ExperimentDetail({ experiment, onBack, onDeleted }) {
     try {
       const data = await api.listUploads(experiment.id);
       setUploads(data);
-    } catch (err) {
+    } catch {
       // Ignore errors for uploads list
     }
   };
 
-  const handleUpload = async (e) => {
+  const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!uploadFile) return;
 
@@ -74,11 +88,11 @@ function ExperimentDetail({ experiment, onBack, onDeleted }) {
       const result = await api.uploadQuestions(experiment.id, uploadFile);
       setSuccess(result.message);
       setUploadFile(null);
-      e.target.reset();
+      (e.target as HTMLFormElement).reset();
       await loadStats();
       await loadUploads();
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Unknown error');
     }
   };
 
@@ -88,7 +102,7 @@ function ExperimentDetail({ experiment, onBack, onDeleted }) {
         await api.deleteExperiment(experiment.id);
         onDeleted();
       } catch (err) {
-        setError(err.message);
+        setError(err instanceof Error ? err.message : 'Unknown error');
       }
     }
   };
@@ -98,7 +112,7 @@ function ExperimentDetail({ experiment, onBack, onDeleted }) {
     return `${baseUrl}/rate?experiment_id=${experiment.id}&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}`;
   };
 
-  const copyToClipboard = (text) => {
+  const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setSuccess('Copied to clipboard!');
     setTimeout(() => setSuccess(null), 2000);
@@ -148,7 +162,7 @@ function ExperimentDetail({ experiment, onBack, onDeleted }) {
     },
     column: {
       display: 'flex',
-      flexDirection: 'column',
+      flexDirection: 'column' as const,
       gap: '20px',
     },
     section: {
@@ -166,7 +180,7 @@ function ExperimentDetail({ experiment, onBack, onDeleted }) {
       margin: 0,
       fontSize: '14px',
       fontWeight: 600,
-      textTransform: 'uppercase',
+      textTransform: 'uppercase' as const,
       letterSpacing: '0.5px',
       color: '#555',
     },
@@ -179,7 +193,7 @@ function ExperimentDetail({ experiment, onBack, onDeleted }) {
       gap: '16px',
     },
     statItem: {
-      textAlign: 'center',
+      textAlign: 'center' as const,
       padding: '16px',
       background: '#f8f9fa',
       borderRadius: '6px',
@@ -240,6 +254,7 @@ function ExperimentDetail({ experiment, onBack, onDeleted }) {
       fontFamily: 'monospace',
       background: '#f8f9fa',
       cursor: 'pointer',
+      boxSizing: 'border-box' as const,
     },
     hint: {
       fontSize: '12px',
@@ -305,7 +320,7 @@ function ExperimentDetail({ experiment, onBack, onDeleted }) {
       lineHeight: 1.4,
     },
     toggle: {
-      position: 'relative',
+      position: 'relative' as const,
       width: '44px',
       height: '24px',
       flexShrink: 0,
@@ -318,7 +333,7 @@ function ExperimentDetail({ experiment, onBack, onDeleted }) {
       transition: 'background 0.2s',
     },
     toggleThumb: {
-      position: 'absolute',
+      position: 'absolute' as const,
       top: '2px',
       width: '20px',
       height: '20px',
@@ -406,7 +421,7 @@ function ExperimentDetail({ experiment, onBack, onDeleted }) {
                   value={getRaterLink()}
                   readOnly
                   onClick={(e) => {
-                    e.target.select();
+                    (e.target as HTMLInputElement).select();
                     copyToClipboard(getRaterLink());
                   }}
                   style={styles.input}
@@ -480,7 +495,7 @@ function ExperimentDetail({ experiment, onBack, onDeleted }) {
                   <input
                     type="file"
                     accept=".csv"
-                    onChange={(e) => setUploadFile(e.target.files[0])}
+                    onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
                     style={{ fontSize: '14px' }}
                   />
                   <div style={styles.hint}>

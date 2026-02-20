@@ -3,13 +3,14 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import Timer from './Timer';
 import QuestionCard from './QuestionCard';
+import type { Session, Question } from '../types';
 
 function RaterView() {
   const [searchParams] = useSearchParams();
-  const [session, setSession] = useState(null);
-  const [question, setQuestion] = useState(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [question, setQuestion] = useState<Question | null>(null);
   const [questionsCompleted, setQuestionsCompleted] = useState(0);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [allDone, setAllDone] = useState(false);
@@ -37,7 +38,7 @@ function RaterView() {
       });
   }, [experimentId, prolificId]);
 
-  const loadNextQuestion = useCallback(async (raterId) => {
+  const loadNextQuestion = useCallback(async (raterId: number) => {
     try {
       setLoading(true);
       const q = await api.getNextQuestion(raterId);
@@ -47,17 +48,17 @@ function RaterView() {
         setQuestion(q);
       }
     } catch (err) {
-      if (err.message === 'Session expired') {
+      if (err instanceof Error && err.message === 'Session expired') {
         setSessionExpired(true);
       } else {
-        setError(err.message);
+        setError(err instanceof Error ? err.message : 'Unknown error');
       }
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const handleSubmit = async (answer, confidence, timeStarted) => {
+  const handleSubmit = async (answer: string, confidence: number, timeStarted: string) => {
     if (!session || !question) return;
 
     try {
@@ -70,10 +71,10 @@ function RaterView() {
       setQuestionsCompleted(prev => prev + 1);
       await loadNextQuestion(session.rater_id);
     } catch (err) {
-      if (err.message === 'Session expired') {
+      if (err instanceof Error && err.message === 'Session expired') {
         setSessionExpired(true);
       } else {
-        setError(err.message);
+        setError(err instanceof Error ? err.message : 'Unknown error');
       }
     }
   };
@@ -124,7 +125,7 @@ function RaterView() {
       borderRadius: '12px',
       border: '1px solid #e0e0e0',
       padding: '60px 40px',
-      textAlign: 'center',
+      textAlign: 'center' as const,
     },
     completionTitle: {
       fontSize: '32px',
@@ -162,7 +163,7 @@ function RaterView() {
       borderRadius: '12px',
       border: '1px solid #f5c6cb',
       padding: '40px',
-      textAlign: 'center',
+      textAlign: 'center' as const,
     },
     errorText: {
       color: '#dc3545',
@@ -173,7 +174,7 @@ function RaterView() {
       borderRadius: '12px',
       border: '1px solid #e0e0e0',
       padding: '60px 40px',
-      textAlign: 'center',
+      textAlign: 'center' as const,
       color: '#666',
     },
   };

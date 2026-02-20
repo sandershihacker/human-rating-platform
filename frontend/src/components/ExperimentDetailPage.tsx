@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import ExperimentDetail from './ExperimentDetail';
+import type { Experiment } from '../types';
 
 function ExperimentDetailPage() {
-  const { experimentId } = useParams();
+  const { experimentId } = useParams<{ experimentId: string }>();
   const navigate = useNavigate();
-  const [experiment, setExperiment] = useState(null);
+  const [experiment, setExperiment] = useState<Experiment | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadExperiment();
@@ -18,14 +19,14 @@ function ExperimentDetailPage() {
     try {
       setLoading(true);
       const experiments = await api.listExperiments();
-      const exp = experiments.find(e => e.id === parseInt(experimentId));
+      const exp = experiments.find(e => e.id === parseInt(experimentId || '0'));
       if (exp) {
         setExperiment(exp);
       } else {
         setError('Experiment not found');
       }
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
@@ -57,6 +58,10 @@ function ExperimentDetailPage() {
         </div>
       </div>
     );
+  }
+
+  if (!experiment) {
+    return null;
   }
 
   return (

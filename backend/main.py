@@ -1,10 +1,9 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
-import os
+from fastapi.responses import JSONResponse
 import logging
 import time
+import os
 
 from database import engine, Base
 from routers import admin, raters
@@ -22,9 +21,12 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Human Rating Platform", version="1.0.0")
 
 # Configure CORS
+# Set CORS_ORIGINS env var to comma-separated list of allowed origins
+# e.g., "https://your-frontend.onrender.com,http://localhost:5173"
+cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -64,14 +66,3 @@ app.include_router(raters.router)
 @app.get("/health")
 def health():
     return {"status": "healthy"}
-
-
-# Serve static files (React build)
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-if os.path.exists(static_dir):
-    app.mount("/assets", StaticFiles(directory=os.path.join(static_dir, "assets")), name="assets")
-
-    @app.get("/{full_path:path}")
-    async def serve_spa(request: Request, full_path: str):
-        # Serve index.html for all non-API routes (SPA routing)
-        return FileResponse(os.path.join(static_dir, "index.html"))
