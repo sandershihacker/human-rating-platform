@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 import csv
 import io
 import json
-from typing import List
+import logging
+from typing import List, Optional
+
+logger = logging.getLogger(__name__)
 
 from database import get_db
 from models import Experiment, Question, Rating, Rater, Upload
@@ -24,6 +27,7 @@ def create_experiment(experiment: ExperimentCreate, db: Session = Depends(get_db
     db.add(db_experiment)
     db.commit()
     db.refresh(db_experiment)
+    logger.info(f"Created experiment: id={db_experiment.id}, name={db_experiment.name}")
     return ExperimentResponse(
         id=db_experiment.id,
         name=db_experiment.name,
@@ -36,29 +40,62 @@ def create_experiment(experiment: ExperimentCreate, db: Session = Depends(get_db
 
 
 @router.get("/experiments", response_model=List[ExperimentResponse])
-def list_experiments(db: Session = Depends(get_db)):
-    experiments = db.query(Experiment).all()
-    result = []
-    for exp in experiments:
-        question_count = db.query(Question).filter(Question.experiment_id == exp.id).count()
-        rating_count = (
-            db.query(Rating)
-            .join(Question)
-            .filter(Question.experiment_id == exp.id)
-            .count()
+def list_experiments(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+):
+    # Subquery for question counts per experiment
+    question_counts = (
+        db.query(
+            Question.experiment_id,
+            func.count(Question.id).label("question_count")
         )
-        result.append(
-            ExperimentResponse(
-                id=exp.id,
-                name=exp.name,
-                created_at=exp.created_at,
-                num_ratings_per_question=exp.num_ratings_per_question,
-                prolific_completion_url=exp.prolific_completion_url,
-                question_count=question_count,
-                rating_count=rating_count,
-            )
+        .group_by(Question.experiment_id)
+        .subquery()
+    )
+
+    # Subquery for rating counts per experiment
+    rating_counts = (
+        db.query(
+            Question.experiment_id,
+            func.count(Rating.id).label("rating_count")
         )
-    return result
+        .join(Rating, Rating.question_id == Question.id)
+        .group_by(Question.experiment_id)
+        .subquery()
+    )
+
+    # Single query with left joins to get all data
+    experiments = (
+        db.query(
+            Experiment,
+            func.coalesce(question_counts.c.question_count, 0).label("question_count"),
+            func.coalesce(rating_counts.c.rating_count, 0).label("rating_count"),
+        )
+        .outerjoin(question_counts, Experiment.id == question_counts.c.experiment_id)
+        .outerjoin(rating_counts, Experiment.id == rating_counts.c.experiment_id)
+        .order_by(Experiment.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        ExperimentResponse(
+            id=exp.id,
+            name=exp.name,
+            created_at=exp.created_at,
+            num_ratings_per_question=exp.num_ratings_per_question,
+            prolific_completion_url=exp.prolific_completion_url,
+            question_count=question_count,
+            rating_count=rating_count,
+        )
+        for exp, question_count, rating_count in experiments
+    ]
+
+
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 
 
 @router.post("/experiments/{experiment_id}/upload")
@@ -69,8 +106,19 @@ def upload_questions(
     if not experiment:
         raise HTTPException(status_code=404, detail="Experiment not found")
 
-    # Read CSV content
-    content = file.file.read().decode("utf-8")
+    # Validate file type
+    if not file.filename or not file.filename.lower().endswith('.csv'):
+        raise HTTPException(status_code=400, detail="File must be a CSV file")
+
+    # Read and validate file size
+    content_bytes = file.file.read()
+    if len(content_bytes) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File size exceeds 50MB limit")
+
+    try:
+        content = content_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="File must be UTF-8 encoded")
     reader = csv.DictReader(io.StringIO(content))
 
     questions_added = 0
@@ -104,11 +152,17 @@ def upload_questions(
     )
     db.add(upload)
     db.commit()
+    logger.info(f"Uploaded {questions_added} questions to experiment {experiment_id} from {file.filename}")
     return {"message": f"Uploaded {questions_added} questions"}
 
 
 @router.get("/experiments/{experiment_id}/uploads")
-def list_uploads(experiment_id: int, db: Session = Depends(get_db)):
+def list_uploads(
+    experiment_id: int,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+):
     experiment = db.query(Experiment).filter(Experiment.id == experiment_id).first()
     if not experiment:
         raise HTTPException(status_code=404, detail="Experiment not found")
@@ -117,6 +171,8 @@ def list_uploads(experiment_id: int, db: Session = Depends(get_db)):
         db.query(Upload)
         .filter(Upload.experiment_id == experiment_id)
         .order_by(Upload.uploaded_at.desc())
+        .offset(skip)
+        .limit(limit)
         .all()
     )
 
@@ -137,57 +193,73 @@ def export_ratings(experiment_id: int, db: Session = Depends(get_db)):
     if not experiment:
         raise HTTPException(status_code=404, detail="Experiment not found")
 
-    # Get all ratings for this experiment
-    ratings = (
-        db.query(Rating, Question, Rater)
-        .join(Question, Rating.question_id == Question.id)
-        .join(Rater, Rating.rater_id == Rater.id)
-        .filter(Question.experiment_id == experiment_id)
-        .all()
-    )
-
-    # Create CSV
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(
-        [
-            "rating_id",
-            "question_id",
-            "question_text",
-            "gt_answer",
-            "rater_prolific_id",
-            "rater_study_id",
-            "rater_session_id",
-            "answer",
-            "confidence",
-            "time_started",
-            "time_submitted",
-            "response_time_seconds",
-        ]
-    )
-
-    for rating, question, rater in ratings:
-        response_time = (rating.time_submitted - rating.time_started).total_seconds()
+    def generate_csv():
+        # Write header
+        output = io.StringIO()
+        writer = csv.writer(output)
         writer.writerow(
             [
-                rating.id,
-                question.question_id,
-                question.question_text,
-                question.gt_answer,
-                rater.prolific_id,
-                rater.study_id or "",
-                rater.session_id or "",
-                rating.answer,
-                rating.confidence,
-                rating.time_started.isoformat(),
-                rating.time_submitted.isoformat(),
-                round(response_time, 2),
+                "rating_id",
+                "question_id",
+                "question_text",
+                "gt_answer",
+                "rater_prolific_id",
+                "rater_study_id",
+                "rater_session_id",
+                "answer",
+                "confidence",
+                "time_started",
+                "time_submitted",
+                "response_time_seconds",
             ]
         )
+        yield output.getvalue()
 
-    output.seek(0)
+        # Stream ratings in batches
+        batch_size = 1000
+        offset = 0
+
+        while True:
+            ratings = (
+                db.query(Rating, Question, Rater)
+                .join(Question, Rating.question_id == Question.id)
+                .join(Rater, Rating.rater_id == Rater.id)
+                .filter(Question.experiment_id == experiment_id)
+                .offset(offset)
+                .limit(batch_size)
+                .all()
+            )
+
+            if not ratings:
+                break
+
+            output = io.StringIO()
+            writer = csv.writer(output)
+
+            for rating, question, rater in ratings:
+                response_time = (rating.time_submitted - rating.time_started).total_seconds()
+                writer.writerow(
+                    [
+                        rating.id,
+                        question.question_id,
+                        question.question_text,
+                        question.gt_answer,
+                        rater.prolific_id,
+                        rater.study_id or "",
+                        rater.session_id or "",
+                        rating.answer,
+                        rating.confidence,
+                        rating.time_started.isoformat(),
+                        rating.time_submitted.isoformat(),
+                        round(response_time, 2),
+                    ]
+                )
+
+            yield output.getvalue()
+            offset += batch_size
+
     return StreamingResponse(
-        iter([output.getvalue()]),
+        generate_csv(),
         media_type="text/csv",
         headers={
             "Content-Disposition": f"attachment; filename=experiment_{experiment_id}_ratings.csv"
@@ -201,15 +273,11 @@ def delete_experiment(experiment_id: int, db: Session = Depends(get_db)):
     if not experiment:
         raise HTTPException(status_code=404, detail="Experiment not found")
 
-    # Delete all related data (ratings, raters, questions, uploads)
-    questions = db.query(Question).filter(Question.experiment_id == experiment_id).all()
-    for question in questions:
-        db.query(Rating).filter(Rating.question_id == question.id).delete()
-    db.query(Question).filter(Question.experiment_id == experiment_id).delete()
-    db.query(Rater).filter(Rater.experiment_id == experiment_id).delete()
-    db.query(Upload).filter(Upload.experiment_id == experiment_id).delete()
+    # With CASCADE delete constraints, we just need to delete the experiment
+    experiment_name = experiment.name
     db.delete(experiment)
     db.commit()
+    logger.info(f"Deleted experiment: id={experiment_id}, name={experiment_name}")
 
     return {"message": "Experiment deleted successfully"}
 

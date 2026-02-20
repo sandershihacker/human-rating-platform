@@ -4,6 +4,9 @@ from sqlalchemy import func
 from datetime import datetime, timedelta
 from typing import Optional
 import random
+import logging
+
+logger = logging.getLogger(__name__)
 
 from database import get_db
 from models import Experiment, Question, Rating, Rater, SESSION_DURATION_MINUTES
@@ -31,22 +34,29 @@ def start_session(
     if not experiment:
         raise HTTPException(status_code=404, detail="Experiment not found")
 
-    # Check if rater already has an active session for this experiment
+    # Check if rater already has a session for this experiment
     existing_rater = (
         db.query(Rater)
         .filter(
             Rater.prolific_id == PROLIFIC_PID,
             Rater.experiment_id == experiment_id,
-            Rater.is_active == True,
         )
         .first()
     )
 
     if existing_rater:
-        # Return existing session
         session_end = existing_rater.session_start + timedelta(
             minutes=SESSION_DURATION_MINUTES
         )
+
+        # Check if session has expired
+        if datetime.utcnow() > session_end or not existing_rater.is_active:
+            raise HTTPException(
+                status_code=403,
+                detail="You have already completed a session for this experiment"
+            )
+
+        # Return existing active session
         return RaterStartResponse(
             rater_id=existing_rater.id,
             session_start=existing_rater.session_start,
@@ -67,6 +77,7 @@ def start_session(
     db.add(rater)
     db.commit()
     db.refresh(rater)
+    logger.info(f"New rater session: rater_id={rater.id}, prolific_id={PROLIFIC_PID}, experiment_id={experiment_id}")
 
     session_end = rater.session_start + timedelta(
         minutes=SESSION_DURATION_MINUTES
@@ -205,6 +216,7 @@ def submit_rating(rating: RatingSubmit, rater_id: int = Query(...), db: Session 
     db.add(db_rating)
     db.commit()
     db.refresh(db_rating)
+    logger.info(f"Rating submitted: rating_id={db_rating.id}, rater_id={rater_id}, question_id={rating.question_id}")
 
     return RatingResponse(id=db_rating.id, success=True)
 

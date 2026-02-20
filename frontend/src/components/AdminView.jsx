@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
-import ExperimentDetail from './ExperimentDetail';
 
 function AdminView() {
+  const navigate = useNavigate();
   const [experiments, setExperiments] = useState([]);
-  const [selectedExperiment, setSelectedExperiment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -43,28 +43,15 @@ function AdminView() {
         num_ratings_per_question: 3,
         prolific_completion_url: '',
       });
-      await loadExperiments();
-      setSelectedExperiment(created);
+      navigate(`/admin/experiments/${created.id}`);
     } catch (err) {
       setError(err.message);
     }
   };
 
-  const handleExperimentDeleted = async () => {
-    setSelectedExperiment(null);
-    setSuccess('Experiment deleted');
-    await loadExperiments();
+  const handleSelectExperiment = (exp) => {
+    navigate(`/admin/experiments/${exp.id}`);
   };
-
-  if (selectedExperiment) {
-    return (
-      <ExperimentDetail
-        experiment={selectedExperiment}
-        onBack={() => setSelectedExperiment(null)}
-        onDeleted={handleExperimentDeleted}
-      />
-    );
-  }
 
   const styles = {
     container: {
@@ -260,7 +247,7 @@ function AdminView() {
                 <div
                   key={exp.id}
                   style={styles.experimentItem}
-                  onClick={() => setSelectedExperiment(exp)}
+                  onClick={() => handleSelectExperiment(exp)}
                   onMouseEnter={(e) => e.currentTarget.style.background = '#f8f9fa'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 >

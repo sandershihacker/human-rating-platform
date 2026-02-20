@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import RaterView from './components/RaterView';
 import AdminView from './components/AdminView';
+import ExperimentDetailPage from './components/ExperimentDetailPage';
 
 function App() {
   return (
@@ -8,6 +9,7 @@ function App() {
       <Route path="/" element={<Home />} />
       <Route path="/rate" element={<RaterView />} />
       <Route path="/admin" element={<AdminView />} />
+      <Route path="/admin/experiments/:experimentId" element={<ExperimentDetailPage />} />
     </Routes>
   );
 }
