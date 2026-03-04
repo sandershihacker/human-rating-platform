@@ -20,6 +20,8 @@ def build_experiment_response(
         created_at=experiment.created_at,
         num_ratings_per_question=experiment.num_ratings_per_question,
         prolific_completion_url=experiment.prolific_completion_url,
+        prolific_study_id=experiment.prolific_study_id,
+        prolific_study_status=experiment.prolific_study_status,
         question_count=question_count,
         rating_count=rating_count,
     )

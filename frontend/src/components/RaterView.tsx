@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import Timer from './Timer';
@@ -19,6 +19,7 @@ function RaterView() {
   const prolificId = searchParams.get('PROLIFIC_PID');
   const studyId = searchParams.get('STUDY_ID');
   const sessionId = searchParams.get('SESSION_ID');
+  const isPreview = prolificId?.startsWith('PREVIEW_') ?? false;
 
   const loadNextQuestion = useCallback(async (raterId: number) => {
     try {
@@ -40,12 +41,19 @@ function RaterView() {
     }
   }, []);
 
+  const startedRef = useRef(false);
+
   useEffect(() => {
     if (!experimentId || !prolificId) {
       setError('Missing experiment_id or PROLIFIC_PID in URL');
       setLoading(false);
       return;
     }
+
+    // Prevent React StrictMode double-mount from firing two concurrent
+    // startSession requests, which causes a unique constraint violation.
+    if (startedRef.current) return;
+    startedRef.current = true;
 
     api.startSession(experimentId, prolificId, studyId, sessionId)
       .then(data => {
@@ -243,6 +251,19 @@ function RaterView() {
 
   return (
     <div style={styles.container}>
+      {isPreview && (
+        <div style={{
+          background: '#fff3cd',
+          border: '1px solid #ffc107',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          marginBottom: '16px',
+          fontSize: '14px',
+          color: '#856404',
+        }}>
+          Preview mode — ratings submitted here are real and will appear in your data.
+        </div>
+      )}
       <Timer
         sessionEndTime={session.session_end_time}
         onExpire={handleSessionExpired}

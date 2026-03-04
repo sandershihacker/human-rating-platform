@@ -97,13 +97,32 @@ function ExperimentDetail({ experiment, onBack, onDeleted }: ExperimentDetailPro
   };
 
   const handleDelete = async () => {
-    if (window.confirm(`Delete "${experiment.name}"? This cannot be undone.`)) {
+    const prolificWarning = experiment.prolific_study_id
+      ? ' The linked Prolific study will also be deleted.'
+      : '';
+    if (window.confirm(`Delete "${experiment.name}"? This cannot be undone.${prolificWarning}`)) {
       try {
         await api.deleteExperiment(experiment.id);
         onDeleted();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
       }
+    }
+  };
+
+  const handlePublishProlific = async () => {
+    if (!window.confirm('Publish this study on Prolific? Participants will be able to start immediately.')) {
+      return;
+    }
+    setError(null);
+    try {
+      await api.publishProlificStudy(experiment.id);
+      setSuccess('Study published on Prolific!');
+      setTimeout(() => setSuccess(null), 3000);
+      // Reload page to get updated status
+      window.location.reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to publish study');
     }
   };
 
@@ -414,22 +433,81 @@ function ExperimentDetail({ experiment, onBack, onDeleted }: ExperimentDetailPro
               <h2 style={styles.sectionTitle}>Prolific Integration</h2>
             </div>
             <div style={styles.sectionBody}>
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Study URL</label>
-                <input
-                  type="text"
-                  value={getRaterLink()}
-                  readOnly
-                  onClick={(e) => {
-                    (e.target as HTMLInputElement).select();
-                    copyToClipboard(getRaterLink());
-                  }}
-                  style={styles.input}
-                />
-                <div style={styles.hint}>Click to copy. Use this as your study URL in Prolific.</div>
-              </div>
-              {experiment.prolific_completion_url && (
+              {experiment.prolific_study_id ? (
+                <>
+                  <div style={styles.inputGroup}>
+                    <label style={styles.label}>Prolific Study ID</label>
+                    <input
+                      type="text"
+                      value={experiment.prolific_study_id}
+                      readOnly
+                      onClick={(e) => {
+                        (e.target as HTMLInputElement).select();
+                        copyToClipboard(experiment.prolific_study_id!);
+                      }}
+                      style={styles.input}
+                    />
+                  </div>
+                  <div style={styles.inputGroup}>
+                    <label style={styles.label}>Study Status</label>
+                    <div>
+                      <span style={{
+                        display: 'inline-block',
+                        padding: '4px 10px',
+                        borderRadius: '4px',
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        background: experiment.prolific_study_status === 'ACTIVE' ? '#d4edda' : '#fff3cd',
+                        color: experiment.prolific_study_status === 'ACTIVE' ? '#155724' : '#856404',
+                      }}>
+                        {experiment.prolific_study_status}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      onClick={() => {
+                        window.open(`https://app.prolific.com/researcher/workspaces/studies/${experiment.prolific_study_id}`, '_blank');
+                      }}
+                      style={styles.secondaryButton}
+                    >
+                      Open on Prolific
+                    </button>
+                    <button
+                      onClick={() => {
+                        const previewId = `PREVIEW_${Date.now()}`;
+                        const url = `${window.location.origin}/rate?experiment_id=${experiment.id}&PROLIFIC_PID=${previewId}&STUDY_ID=PREVIEW&SESSION_ID=PREVIEW`;
+                        window.open(url, '_blank');
+                      }}
+                      style={styles.secondaryButton}
+                    >
+                      Preview as Participant
+                    </button>
+                    {experiment.prolific_study_status === 'UNPUBLISHED' && (
+                      <button onClick={handlePublishProlific} style={styles.primaryButton}>
+                        Publish on Prolific
+                      </button>
+                    )}
+                  </div>
+                </>
+              ) : (
                 <div style={styles.inputGroup}>
+                  <label style={styles.label}>Study URL</label>
+                  <input
+                    type="text"
+                    value={getRaterLink()}
+                    readOnly
+                    onClick={(e) => {
+                      (e.target as HTMLInputElement).select();
+                      copyToClipboard(getRaterLink());
+                    }}
+                    style={styles.input}
+                  />
+                  <div style={styles.hint}>Click to copy. Use this as your study URL in Prolific.</div>
+                </div>
+              )}
+              {experiment.prolific_completion_url && (
+                <div style={{ ...styles.inputGroup, marginTop: experiment.prolific_study_id ? '0' : undefined }}>
                   <label style={styles.label}>Completion URL</label>
                   <input
                     type="text"
